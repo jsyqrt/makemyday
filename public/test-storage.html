@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>存储测试 - Make My Day</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .test-box {
+      background: white;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: #4CAF50;
+      color: white;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .danger {
+      background: #f44336;
+    }
+    .danger:hover {
+      background: #da190b;
+    }
+    pre {
+      background: #f0f0f0;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .status.warning {
+      background: #fff3cd;
+      color: #856404;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 Make My Day - 存储诊断工具</h1>
+
+  <div class="test-box">
+    <h2>1. 浏览器环境检查</h2>
+    <div id="env-status"></div>
+  </div>
+
+  <div class="test-box">
+    <h2>2. 测试 localStorage</h2>
+    <button onclick="testLocalStorage()">测试 localStorage</button>
+    <button onclick="saveTestData()">保存测试数据</button>
+    <button onclick="loadTestData()">加载测试数据</button>
+    <button class="danger" onclick="clearTestData()">清除测试数据</button>
+    <div id="test-result"></div>
+  </div>
+
+  <div class="test-box">
+    <h2>3. 查看 Make My Day 数据</h2>
+    <button onclick="viewAppData()">查看应用数据</button>
+    <button class="danger" onclick="clearAppData()">清除应用数据</button>
+    <div id="app-data"></div>
+  </div>
+
+  <div class="test-box">
+    <h2>4. 查看所有 localStorage</h2>
+    <button onclick="viewAllStorage()">查看全部</button>
+    <div id="all-storage"></div>
+  </div>
+
+  <script>
+    // 环境检查
+    function checkEnvironment() {
+      const status = document.getElementById('env-status');
+      let html = '';
+
+      // 检查是否无痕模式
+      const isIncognito = () => {
+        return new Promise((resolve) => {
+          if ('storage' in navigator && 'estimate' in navigator.storage) {
+            navigator.storage.estimate().then(({ quota }) => {
+              resolve(quota < 120000000); // 无痕模式通常小于120MB
+            });
+          } else {
+            resolve(false);
+          }
+        });
+      };
+
+      isIncognito().then(incognito => {
+        if (incognito) {
+          html += '<div class="status warning">⚠️ 可能处于无痕模式！数据会在关闭标签页后丢失。</div>';
+        } else {
+          html += '<div class="status success">✅ 正常浏览模式</div>';
+        }
+
+        // 检查 localStorage 可用性
+        try {
+          localStorage.setItem('__test__', 'test');
+          localStorage.removeItem('__test__');
+          html += '<div class="status success">✅ localStorage 可用</div>';
+        } catch (e) {
+          html += '<div class="status error">❌ localStorage 不可用: ' + e.message + '</div>';
+        }
+
+        // 显示浏览器信息
+        html += '<div class="status">📱 浏览器: ' + navigator.userAgent + '</div>';
+        html += '<div class="status">🌐 当前URL: ' + window.location.href + '</div>';
+
+        status.innerHTML = html;
+      });
+    }
+
+    // 测试 localStorage
+    function testLocalStorage() {
+      const result = document.getElementById('test-result');
+      try {
+        const testKey = 'makemyday_test';
+        const testValue = {
+          timestamp: new Date().toISOString(),
+          data: 'This is a test',
+          random: Math.random()
+        };
+
+        // 保存
+        localStorage.setItem(testKey, JSON.stringify(testValue));
+
+        // 读取
+        const loaded = JSON.parse(localStorage.getItem(testKey));
+
+        // 验证
+        if (loaded.data === testValue.data) {
+          result.innerHTML = '<div class="status success">✅ localStorage 读写测试通过！</div><pre>' + JSON.stringify(loaded, null, 2) + '</pre>';
+        } else {
+          result.innerHTML = '<div class="status error">❌ 数据不一致</div>';
+        }
+
+        // 清理
+        localStorage.removeItem(testKey);
+      } catch (e) {
+        result.innerHTML = '<div class="status error">❌ 测试失败: ' + e.message + '</div>';
+      }
+    }
+
+    // 保存测试数据
+    function saveTestData() {
+      const result = document.getElementById('test-result');
+      try {
+        const testEvents = [
+          {
+            id: Date.now(),
+            title: '测试事件 ' + new Date().toLocaleTimeString(),
+            priority: 'urgent-important',
+            suggestion: '这是一个测试事件',
+            completed: false,
+            createdAt: new Date().toISOString()
+          }
+        ];
+
+        localStorage.setItem('makemyday_events', JSON.stringify(testEvents));
+        result.innerHTML = '<div class="status success">✅ 测试数据已保存！请刷新页面后点击"加载测试数据"查看。</div>';
+      } catch (e) {
+        result.innerHTML = '<div class="status error">❌ 保存失败: ' + e.message + '</div>';
+      }
+    }
+
+    // 加载测试数据
+    function loadTestData() {
+      const result = document.getElementById('test-result');
+      try {
+        const data = localStorage.getItem('makemyday_events');
+        if (data) {
+          const events = JSON.parse(data);
+          result.innerHTML = '<div class="status success">✅ 找到 ' + events.length + ' 个事件</div><pre>' + JSON.stringify(events, null, 2) + '</pre>';
+        } else {
+          result.innerHTML = '<div class="status warning">⚠️ 没有找到数据</div>';
+        }
+      } catch (e) {
+        result.innerHTML = '<div class="status error">❌ 加载失败: ' + e.message + '</div>';
+      }
+    }
+
+    // 清除测试数据
+    function clearTestData() {
+      if (confirm('确定清除测试数据？')) {
+        localStorage.removeItem('makemyday_test');
+        document.getElementById('test-result').innerHTML = '<div class="status">已清除测试数据</div>';
+      }
+    }
+
+    // 查看应用数据
+    function viewAppData() {
+      const result = document.getElementById('app-data');
+      let html = '';
+
+      const config = localStorage.getItem('makemyday_config');
+      const events = localStorage.getItem('makemyday_events');
+
+      html += '<h3>配置数据:</h3>';
+      if (config) {
+        html += '<pre>' + JSON.stringify(JSON.parse(config), null, 2) + '</pre>';
+      } else {
+        html += '<div class="status warning">⚠️ 没有配置数据</div>';
+      }
+
+      html += '<h3>事件数据:</h3>';
+      if (events) {
+        const eventsData = JSON.parse(events);
+        html += '<div class="status success">✅ 找到 ' + eventsData.length + ' 个事件</div>';
+        html += '<pre>' + JSON.stringify(eventsData, null, 2) + '</pre>';
+      } else {
+        html += '<div class="status warning">⚠️ 没有事件数据</div>';
+      }
+
+      result.innerHTML = html;
+    }
+
+    // 清除应用数据
+    function clearAppData() {
+      if (confirm('⚠️ 确定清除 Make My Day 的所有数据？此操作不可恢复！')) {
+        localStorage.removeItem('makemyday_config');
+        localStorage.removeItem('makemyday_events');
+        sessionStorage.removeItem('makemyday_storage_warned');
+        document.getElementById('app-data').innerHTML = '<div class="status">✅ 已清除所有应用数据</div>';
+      }
+    }
+
+    // 查看所有存储
+    function viewAllStorage() {
+      const result = document.getElementById('all-storage');
+      let html = '<h3>所有 localStorage 键值:</h3>';
+
+      if (localStorage.length === 0) {
+        html += '<div class="status warning">⚠️ localStorage 为空</div>';
+      } else {
+        html += '<div class="status">共 ' + localStorage.length + ' 项</div>';
+        html += '<pre>';
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          const value = localStorage.getItem(key);
+          html += key + ':\n' + value + '\n\n';
+        }
+        html += '</pre>';
+      }
+
+      result.innerHTML = html;
+    }
+
+    // 页面加载时执行环境检查
+    checkEnvironment();
+  </script>
+
+  <div class="test-box">
+    <h2>📖 使用说明</h2>
+    <ol>
+      <li>先点击"测试 localStorage"确认浏览器功能正常</li>
+      <li>点击"保存测试数据"保存一个测试事件</li>
+      <li><strong>刷新页面</strong> (F5 或 Cmd+R)</li>
+      <li>点击"加载测试数据"查看数据是否还在</li>
+      <li>如果数据在，说明存储功能正常；如果数据丢失，可能是浏览器设置问题</li>
+    </ol>
+
+    <h3>⚠️ 常见问题：</h3>
+    <ul>
+      <li><strong>无痕模式</strong>：关闭标签页后数据会丢失 → 使用正常模式</li>
+      <li><strong>浏览器隐私设置过高</strong>：阻止 localStorage → 降低隐私级别</li>
+      <li><strong>浏览器扩展冲突</strong>：某些扩展会清理存储 → 暂时禁用</li>
+      <li><strong>磁盘空间不足</strong>：无法写入数据 → 清理磁盘空间</li>
+    </ul>
+
+    <p><a href="/">← 返回应用</a></p>
+  </div>
+</body>
+</html>
+

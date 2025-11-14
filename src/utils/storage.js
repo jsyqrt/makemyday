@@ -46,3 +46,71 @@ export const setStorageWarning = () => {
   sessionStorage.setItem('makemyday_storage_warned', 'true')
 }
 
+// UI 设置存储
+export const loadUISettings = () => {
+  try {
+    const settings = localStorage.getItem('makemyday_ui_settings')
+    return settings ? JSON.parse(settings) : {
+      showCompleted: true
+    }
+  } catch (error) {
+    console.error('加载UI设置失败:', error)
+    return {
+      showCompleted: true
+    }
+  }
+}
+
+export const saveUISettings = (settings) => {
+  try {
+    localStorage.setItem('makemyday_ui_settings', JSON.stringify(settings))
+  } catch (error) {
+    console.error('保存UI设置失败:', error)
+  }
+}
+
+// 背景设置存储
+export const loadBackgroundSettings = () => {
+  try {
+    const settings = localStorage.getItem('makemyday_background_settings')
+    return settings ? JSON.parse(settings) : {
+      backgroundType: 'gradient', // 'gradient' | 'color' | 'image' | 'folder'
+      backgroundColor: '#667eea',
+      gradientStart: '#667eea',
+      gradientEnd: '#764ba2',
+      backgroundImage: '',
+      backgroundImages: [], // 存储多张图片的 base64 或 URL
+      backgroundSize: 'cover', // 'cover' | 'contain' | 'auto' | 'stretch'
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      autoSwitch: false,
+      switchInterval: 30, // 秒
+      containerOpacity: 50 // 容器透明度（0-100）
+    }
+  } catch (error) {
+    console.error('加载背景设置失败:', error)
+    return {
+      backgroundType: 'gradient',
+      backgroundColor: '#667eea',
+      gradientStart: '#667eea',
+      gradientEnd: '#764ba2',
+      backgroundImage: '',
+      backgroundImages: [],
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundRepeat: 'no-repeat',
+      autoSwitch: false,
+      switchInterval: 30,
+      containerOpacity: 50
+    }
+  }
+}
+
+export const saveBackgroundSettings = (settings) => {
+  try {
+    localStorage.setItem('makemyday_background_settings', JSON.stringify(settings))
+  } catch (error) {
+    console.error('保存背景设置失败:', error)
+  }
+}
+

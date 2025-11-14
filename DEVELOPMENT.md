@@ -19,7 +19,7 @@ makemyday/
     ├── components/       # React 组件
     │   ├── ConfigModal.jsx      # 配置模态框
     │   ├── MainLayout.jsx       # 主布局
-    │   ├── InputArea.jsx        # 输入区域（文本+语音）
+    │   ├── InputArea.jsx        # 输入区域
     │   ├── EventList.jsx        # 事件列表视图
     │   ├── EventCard.jsx        # 事件卡片组件
     │   └── QuadrantView.jsx     # 四象限视图
@@ -44,8 +44,6 @@ makemyday/
 ### 浏览器 API
 - **localStorage**: 持久化存储配置和事件数据
 - **sessionStorage**: 临时存储警告状态
-- **Web Speech API**: 浏览器原生语音识别（Chrome/Edge）
-- **MediaRecorder API**: 录制音频用于 SiliconFlow 语音识别
 
 ## 功能模块说明
 
@@ -53,7 +51,6 @@ makemyday/
 
 **功能**:
 - LLM API 配置（API Key、Base URL、Model）
-- 语音识别 API 配置（可选）
 - API 测试功能
 - 配置持久化存储
 
@@ -107,25 +104,7 @@ makemyday/
 
 **功能**:
 - 文本输入
-- 语音输入（支持两种方式）
 - 快捷键支持（Ctrl/Cmd + Enter）
-
-**语音识别方式 1：SiliconFlow API（推荐）**
-- 使用 MediaRecorder API 录制音频
-- 录音完成后上传到 SiliconFlow API
-- 使用 `FunAudioLLM/SenseVoiceSmall` 模型
-- 支持所有现代浏览器
-- API 端点：`https://api.siliconflow.cn/v1/audio/transcriptions`
-
-**语音识别方式 2：浏览器内置（免费）**
-- 使用浏览器原生 Web Speech API
-- 连续识别模式
-- 实时转文字显示
-- 仅支持 Chrome/Edge 浏览器
-
-**自动选择逻辑**：
-- 如果配置了 `speechApiKey`，使用 SiliconFlow API
-- 否则使用浏览器内置 Web Speech API
 
 ### 5. 数据存储 (storage.js)
 
@@ -233,8 +212,7 @@ Authorization: Bearer {apiKey}
 {
   apiKey: string,           // LLM API Key (必需)
   baseUrl: string,          // API Base URL
-  model: string,            // 模型名称
-  speechApiKey: string      // 语音识别 API Key (可选)
+  model: string             // 模型名称
 }
 ```
 
@@ -252,19 +230,7 @@ Authorization: Bearer {apiKey}
 
 ## 常见问题
 
-### 1. 语音识别不工作
-
-**原因**:
-- 浏览器不支持（仅 Chrome/Edge 支持）
-- 未授予麦克风权限
-- HTTPS 要求（本地开发除外）
-
-**解决**:
-- 使用 Chrome 或 Edge 浏览器
-- 检查浏览器权限设置
-- 确保使用 HTTPS 或 localhost
-
-### 2. API 调用失败
+### 1. API 调用失败
 
 **可能原因**:
 - API Key 无效或过期
@@ -277,7 +243,7 @@ Authorization: Bearer {apiKey}
 - 检查 API 服务商的控制台
 - 查看浏览器开发者工具的网络面板
 
-### 3. 数据丢失
+### 2. 数据丢失
 
 **原因**:
 - 清除了浏览器缓存

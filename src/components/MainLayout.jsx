@@ -1,55 +1,76 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import InputArea from './InputArea'
-import EventList from './EventList'
-import QuadrantView from './QuadrantView'
-import { loadEvents, saveEvents, checkStorageWarning, setStorageWarning } from '../utils/storage'
+import QuadrantViewDraggable from './QuadrantViewDraggable'
+import { loadEvents, saveEvents, checkStorageWarning, setStorageWarning, loadUISettings, saveUISettings, loadBackgroundSettings } from '../utils/storage'
 import { callLLM } from '../utils/llm'
+import { exportToJSON, importFromJSON } from '../utils/export'
 
 function MainLayout({ config, onOpenConfig }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = useState('list') // 'list' or 'quadrant'
   const [showWarning, setShowWarning] = useState(false)
+  const [showPlanModal, setShowPlanModal] = useState(false) // 显示规划弹窗
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false) // 显示设置菜单
+  const [showCompleted, setShowCompleted] = useState(true) // 是否显示已完成栏目
+  const [aiStreamOutput, setAiStreamOutput] = useState('') // AI 流式输出内容
+  const [bgSettings, setBgSettings] = useState(loadBackgroundSettings()) // 背景设置
+  const fileInputRef = useRef(null)
+  const isInitialized = useRef(false) // 标记是否已初始化
 
   // 初始化：只在组件挂载时加载数据
   useEffect(() => {
     const savedEvents = loadEvents()
     setEvents(savedEvents)
 
+    // 加载 UI 设置
+    const uiSettings = loadUISettings()
+    setShowCompleted(uiSettings.showCompleted)
+
+    // 延迟标记初始化完成，确保 setEvents 已经执行
+    setTimeout(() => {
+      isInitialized.current = true
+    }, 100)
+
     // 检查是否需要显示刷新警告
     if (!checkStorageWarning()) {
       setShowWarning(true)
       setStorageWarning()
     }
+
+    // 监听背景设置变化
+    const handleBgChange = () => {
+      setBgSettings(loadBackgroundSettings())
+    }
+    window.addEventListener('backgroundSettingsChanged', handleBgChange)
+    return () => window.removeEventListener('backgroundSettingsChanged', handleBgChange)
   }, []) // 空数组：只执行一次
 
-  // 监听页面刷新和关闭（依赖 events.length）
+  // 保存 UI 设置
   useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (events.length > 0) {
-        e.preventDefault()
-        // 自定义提示信息
-        const message = '⚠️ 数据已自动保存在浏览器中。\n\n如果您清除浏览器缓存或使用无痕模式，数据将会丢失！\n\n确定要离开吗？'
-        e.returnValue = message
-        return message
-      }
+    if (isInitialized.current) {
+      saveUISettings({ showCompleted })
     }
+  }, [showCompleted])
 
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [events.length])
-
-  // 自动保存（依赖 events）
+  // 自动保存（依赖 events）- 跳过初始化时的保存
   useEffect(() => {
-    saveEvents(events)
+    if (isInitialized.current) {
+      saveEvents(events)
+    }
   }, [events])
 
   const handleAddInput = async (text) => {
     if (!text.trim()) return
 
     setLoading(true)
+    setAiStreamOutput('') // 清空之前的输出
     try {
-      const parsedEvents = await callLLM(config, text)
+      // 流式输出回调函数
+      const onStreamCallback = (token, fullContent) => {
+        setAiStreamOutput(fullContent)
+      }
+
+      const parsedEvents = await callLLM(config, text, onStreamCallback)
 
       if (Array.isArray(parsedEvents) && parsedEvents.length > 0) {
         const newEvents = parsedEvents.map((event, index) => ({
@@ -57,9 +78,16 @@ function MainLayout({ config, onOpenConfig }) {
           title: event.title || '未命名事件',
           priority: event.priority || 'not-urgent-not-important',
           suggestion: event.suggestion || '',
+          detail: event.detail || '', // 详细信息
+          completed: false,
+          eventType: event.eventType || 'one-time', // 默认为一次性事件
+          completionHistory: [], // 周期性事件的完成记录
+          isExpanded: true, // 默认展开
           createdAt: new Date().toISOString()
         }))
-        setEvents([...events, ...newEvents])
+        setEvents([...newEvents, ...events])
+        // 成功后关闭弹窗
+        setShowPlanModal(false)
       } else {
         alert('AI 返回的数据格式不正确')
       }
@@ -67,7 +95,13 @@ function MainLayout({ config, onOpenConfig }) {
       alert(`处理失败: ${error.message}`)
     } finally {
       setLoading(false)
+      // 延迟清空流式输出，让用户看到完整结果
+      setTimeout(() => setAiStreamOutput(''), 1000)
     }
+  }
+
+  const handleAddEvent = (newEvent) => {
+    setEvents([newEvent, ...events])
   }
 
   const handleUpdateEvent = (id, updates) => {
@@ -77,13 +111,49 @@ function MainLayout({ config, onOpenConfig }) {
   }
 
   const handleDeleteEvent = (id) => {
-    if (confirm('确定要删除这个事件吗？')) {
-      setEvents(events.filter(event => event.id !== id))
-    }
+    setEvents(events.filter(event => event.id !== id))
   }
 
   const handleReorderEvents = (newEvents) => {
     setEvents(newEvents)
+  }
+
+  const handleExportJSON = () => {
+    exportToJSON(events)
+    setShowSettingsMenu(false)
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+    setShowSettingsMenu(false)
+  }
+
+  const handleConfigClick = () => {
+    onOpenConfig()
+    setShowSettingsMenu(false)
+  }
+
+  const toggleShowCompleted = () => {
+    setShowCompleted(!showCompleted)
+  }
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const importedEvents = await importFromJSON(file)
+
+      if (confirm(`确定要导入 ${importedEvents.length} 个事件吗？\n\n这将覆盖当前的所有事件！`)) {
+        setEvents(importedEvents)
+        alert('导入成功！')
+      }
+    } catch (error) {
+      alert(`导入失败: ${error.message}`)
+    }
+
+    // 清空 input
+    e.target.value = ''
   }
 
   return (
@@ -121,41 +191,109 @@ function MainLayout({ config, onOpenConfig }) {
       )}
 
       {/* 头部 */}
-      <header className="bg-white shadow-md">
+      <header className="bg-gradient-to-br from-purple-500 to-blue-500">
         <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              ✨ Make My Day
-            </h1>
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-1">
+                ✨ Make My Day
+              </h1>
+              <p className="text-white/80 text-sm">
+                根据紧急程度和重要程度分类管理你的事件 · 可拖拽调整象限
+              </p>
+            </div>
             <div className="flex gap-3">
+              {/* 帮我规划按钮 */}
               <button
-                onClick={onOpenConfig}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                onClick={() => setShowPlanModal(true)}
+                disabled={loading}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all flex items-center gap-2 disabled:opacity-50 font-medium shadow-md"
+                title="让 AI 帮我规划"
               >
-                ⚙️ 设置
+                ✨ 帮我规划
               </button>
-              <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+
+              {/* 设置菜单 */}
+              <div className="relative">
                 <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-4 py-2 transition-colors ${
-                    viewMode === 'list'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
+                  onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
+                  title="设置"
                 >
-                  📋 列表
+                  ⚙️ 设置
                 </button>
-                <button
-                  onClick={() => setViewMode('quadrant')}
-                  className={`px-4 py-2 transition-colors ${
-                    viewMode === 'quadrant'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  📊 四象限
-                </button>
+
+                {showSettingsMenu && (
+                  <>
+                    {/* 点击外部关闭菜单 */}
+                    <div
+                      className="fixed inset-0 z-30"
+                      onClick={() => setShowSettingsMenu(false)}
+                    />
+
+                    {/* 下拉菜单 */}
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-40 overflow-hidden">
+                      {/* 导入 */}
+                      <button
+                        onClick={handleImportClick}
+                        disabled={loading}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3 border-b border-gray-100 disabled:opacity-50"
+                      >
+                        <span className="text-xl">📥</span>
+                        <span className="text-sm font-medium text-gray-700">导入</span>
+                      </button>
+
+                      {/* 导出 */}
+                      <button
+                        onClick={handleExportJSON}
+                        disabled={loading || events.length === 0}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3 border-b border-gray-100 disabled:opacity-50"
+                      >
+                        <span className="text-xl">📤</span>
+                        <span className="text-sm font-medium text-gray-700">导出</span>
+                      </button>
+
+                      {/* 配置 */}
+                      <button
+                        onClick={handleConfigClick}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-3 border-b border-gray-100"
+                      >
+                        <span className="text-xl">⚙️</span>
+                        <span className="text-sm font-medium text-gray-700">配置</span>
+                      </button>
+
+                      {/* 显示已完成 */}
+                      <button
+                        onClick={toggleShowCompleted}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between gap-3 border-b border-gray-100"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{showCompleted ? '👁️' : '🙈'}</span>
+                          <span className="text-sm font-medium text-gray-700">已完成</span>
+                        </div>
+                        <span className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                          showCompleted
+                            ? 'bg-green-500 border-green-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {showCompleted && (
+                            <span className="text-white text-xs">✓</span>
+                          )}
+                        </span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
+
+              {/* 隐藏的文件输入 */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportFile}
+                className="hidden"
+              />
             </div>
           </div>
         </div>
@@ -163,43 +301,71 @@ function MainLayout({ config, onOpenConfig }) {
 
       {/* 主内容 */}
       <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* 输入区域 */}
-        <InputArea
-          onSubmit={handleAddInput}
-          loading={loading}
-          config={config}
-        />
-
         {/* 事件展示区 */}
         {events.length === 0 ? (
-          <div className="mt-8 text-center py-16 bg-white rounded-2xl shadow-lg">
+          <div className="text-center py-16 bg-white rounded-2xl shadow-lg">
             <div className="text-6xl mb-4">📝</div>
             <h3 className="text-2xl font-semibold text-gray-700 mb-2">
               还没有任何事件
             </h3>
-            <p className="text-gray-500">
-              在上方输入框中告诉我你的计划，AI 会帮你分解成具体的事件
+            <p className="text-gray-500 mb-6">
+              点击右上角"帮我规划"按钮，让 AI 帮你分解任务
             </p>
+            <button
+              onClick={() => setShowPlanModal(true)}
+              className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg"
+            >
+              ✨ 开始规划
+            </button>
           </div>
         ) : (
-          <div className="mt-8">
-            {viewMode === 'list' ? (
-              <EventList
-                events={events}
-                onUpdate={handleUpdateEvent}
-                onDelete={handleDeleteEvent}
-                onReorder={handleReorderEvents}
-              />
-            ) : (
-              <QuadrantView
-                events={events}
-                onUpdate={handleUpdateEvent}
-                onDelete={handleDeleteEvent}
-              />
-            )}
-          </div>
+          <QuadrantViewDraggable
+            events={events}
+            onAdd={handleAddEvent}
+            onUpdate={handleUpdateEvent}
+            onDelete={handleDeleteEvent}
+            onReorder={handleReorderEvents}
+            showCompleted={showCompleted}
+            isImageBackground={bgSettings.backgroundType === 'image' || bgSettings.backgroundType === 'folder'}
+            containerOpacity={bgSettings.containerOpacity !== undefined ? bgSettings.containerOpacity : 50}
+          />
         )}
       </main>
+
+      {/* AI 规划弹窗 */}
+      {showPlanModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={() => !loading && setShowPlanModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              {/* 头部 */}
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">
+                    ✨ AI 帮我规划
+                  </h2>
+                  <p className="text-sm text-gray-500 mt-1">告诉我你的计划，AI 会帮你分解成具体的事件</p>
+                </div>
+                <button
+                  onClick={() => !loading && setShowPlanModal(false)}
+                  disabled={loading}
+                  className="text-gray-500 hover:text-gray-700 text-2xl leading-none disabled:opacity-50"
+                  title="关闭"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* 输入区域 */}
+              <InputArea
+                onSubmit={handleAddInput}
+                loading={loading}
+                config={config}
+                aiStreamOutput={aiStreamOutput}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

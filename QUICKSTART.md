@@ -31,9 +31,6 @@ npm run dev
 ### 可选配置
 - **Base URL**: API 地址（默认: `https://api.siliconflow.cn/v1`）
 - **Model**: 模型名称（默认: `deepseek-ai/DeepSeek-V2.5`）
-- **Speech API Key**: 语音识别密钥
-  - 推荐：填入与 LLM 相同的 API Key，使用 SiliconFlow 语音识别
-  - 或留空使用浏览器内置（仅支持 Chrome/Edge）
 
 ### 获取 API Key
 
@@ -93,24 +90,6 @@ AI 会根据紧急程度和重要程度将事件分类：
 | ⭐ 不紧急但重要 | 规划、学习、锻炼 | 计划去做 | 学习新技能 |
 | 📌 不紧急也不重要 | 琐事、娱乐 | 稍后再做 | 刷社交媒体 |
 
-## 🎤 语音输入
-
-应用支持两种语音识别方式：
-
-### 方式 1：SiliconFlow API（推荐）
-配置 Speech API Key 后：
-- ✅ 支持所有现代浏览器（Chrome、Firefox、Safari、Edge）
-- ✅ 识别准确度高
-- ✅ 使用 FunAudioLLM/SenseVoiceSmall 模型
-- 使用方法：点击"语音"按钮开始录音，再次点击停止并识别
-
-### 方式 2：浏览器内置（免费）
-留空 Speech API Key 时：
-- ✅ 完全免费
-- ✅ 实时语音转文字
-- ⚠️ 仅支持 Chrome、Edge 浏览器
-- ❌ 不支持：Firefox、Safari
-
 ## 💾 数据存储
 
 - 所有数据保存在浏览器本地（localStorage）
@@ -128,13 +107,6 @@ A:
 1. 检查 API Key 是否正确
 2. 使用配置页面的"测试 API"功能
 3. 确认 API 服务正常且有余额
-
-### Q: 语音识别不工作？
-A:
-1. **推荐方案**：配置 SiliconFlow 语音识别 API Key（与 LLM API Key 相同）
-2. 确保授予浏览器麦克风权限
-3. 如果使用浏览器内置识别，确保使用 Chrome 或 Edge 浏览器
-4. 如果是生产环境，确保使用 HTTPS
 
 ### Q: 数据丢失了？
 A:
