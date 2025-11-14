@@ -1,20 +1,29 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import InputArea from './InputArea'
 import EventList from './EventList'
-import QuadrantView from './QuadrantView'
+import QuadrantViewDraggable from './QuadrantViewDraggable'
 import { loadEvents, saveEvents, checkStorageWarning, setStorageWarning } from '../utils/storage'
 import { callLLM } from '../utils/llm'
+import { exportToJSON, exportToMarkdown, exportToImage, importFromJSON } from '../utils/export'
 
 function MainLayout({ config, onOpenConfig }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = useState('list') // 'list' or 'quadrant'
+  const [viewMode, setViewMode] = useState('quadrant') // 'list' or 'quadrant' - 默认四象限
   const [showWarning, setShowWarning] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const fileInputRef = useRef(null)
+  const isInitialized = useRef(false) // 标记是否已初始化
 
   // 初始化：只在组件挂载时加载数据
   useEffect(() => {
     const savedEvents = loadEvents()
     setEvents(savedEvents)
+
+    // 延迟标记初始化完成，确保 setEvents 已经执行
+    setTimeout(() => {
+      isInitialized.current = true
+    }, 100)
 
     // 检查是否需要显示刷新警告
     if (!checkStorageWarning()) {
@@ -23,25 +32,11 @@ function MainLayout({ config, onOpenConfig }) {
     }
   }, []) // 空数组：只执行一次
 
-  // 监听页面刷新和关闭（依赖 events.length）
+  // 自动保存（依赖 events）- 跳过初始化时的保存
   useEffect(() => {
-    const handleBeforeUnload = (e) => {
-      if (events.length > 0) {
-        e.preventDefault()
-        // 自定义提示信息
-        const message = '⚠️ 数据已自动保存在浏览器中。\n\n如果您清除浏览器缓存或使用无痕模式，数据将会丢失！\n\n确定要离开吗？'
-        e.returnValue = message
-        return message
-      }
+    if (isInitialized.current) {
+      saveEvents(events)
     }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [events.length])
-
-  // 自动保存（依赖 events）
-  useEffect(() => {
-    saveEvents(events)
   }, [events])
 
   const handleAddInput = async (text) => {
@@ -57,6 +52,7 @@ function MainLayout({ config, onOpenConfig }) {
           title: event.title || '未命名事件',
           priority: event.priority || 'not-urgent-not-important',
           suggestion: event.suggestion || '',
+          completed: false,
           createdAt: new Date().toISOString()
         }))
         setEvents([...events, ...newEvents])
@@ -77,13 +73,53 @@ function MainLayout({ config, onOpenConfig }) {
   }
 
   const handleDeleteEvent = (id) => {
-    if (confirm('确定要删除这个事件吗？')) {
-      setEvents(events.filter(event => event.id !== id))
-    }
+    setEvents(events.filter(event => event.id !== id))
   }
 
   const handleReorderEvents = (newEvents) => {
     setEvents(newEvents)
+  }
+
+  const handleExportJSON = () => {
+    exportToJSON(events)
+    setShowExportMenu(false)
+  }
+
+  const handleExportMarkdown = () => {
+    exportToMarkdown(events)
+    setShowExportMenu(false)
+  }
+
+  const handleExportImage = async () => {
+    try {
+      await exportToImage(events)
+      setShowExportMenu(false)
+    } catch (error) {
+      alert(error.message)
+    }
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleImportFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    try {
+      const importedEvents = await importFromJSON(file)
+
+      if (confirm(`确定要导入 ${importedEvents.length} 个事件吗？\n\n这将覆盖当前的所有事件！`)) {
+        setEvents(importedEvents)
+        alert('导入成功！')
+      }
+    } catch (error) {
+      alert(`导入失败: ${error.message}`)
+    }
+
+    // 清空 input
+    e.target.value = ''
   }
 
   return (
@@ -128,6 +164,60 @@ function MainLayout({ config, onOpenConfig }) {
               ✨ Make My Day
             </h1>
             <div className="flex gap-3">
+              {/* 导入按钮 */}
+              <button
+                onClick={handleImportClick}
+                disabled={loading}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                title="导入 JSON 文件"
+              >
+                📥 导入
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportFile}
+                className="hidden"
+              />
+
+              {/* 导出菜单 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  disabled={loading || events.length === 0}
+                  className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-50"
+                  title="导出"
+                >
+                  📤 导出
+                </button>
+                {showExportMenu && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-gray-200 z-10">
+                    <button
+                      onClick={handleExportJSON}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-2 border-b border-gray-100"
+                    >
+                      <span>📄</span>
+                      <span>导出为 JSON</span>
+                    </button>
+                    <button
+                      onClick={handleExportMarkdown}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-2 border-b border-gray-100"
+                    >
+                      <span>📝</span>
+                      <span>导出为 Markdown</span>
+                    </button>
+                    <button
+                      onClick={handleExportImage}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-2 rounded-b-lg"
+                    >
+                      <span>🖼️</span>
+                      <span>导出为图片</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               <button
                 onClick={onOpenConfig}
                 className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
@@ -191,10 +281,11 @@ function MainLayout({ config, onOpenConfig }) {
                 onReorder={handleReorderEvents}
               />
             ) : (
-              <QuadrantView
+              <QuadrantViewDraggable
                 events={events}
                 onUpdate={handleUpdateEvent}
                 onDelete={handleDeleteEvent}
+                onReorder={handleReorderEvents}
               />
             )}
           </div>

@@ -103,7 +103,7 @@ function QuadrantView({ events, onUpdate, onDelete }) {
               </div>
 
               {/* 事件列表 */}
-              <div className="p-4 space-y-3 min-h-[200px] max-h-[500px] overflow-y-auto">
+              <div className="p-4 space-y-3 min-h-[200px]">
                 {quadrantEvents.length === 0 ? (
                   <div className="text-center py-8 text-gray-400">
                     <p>暂无事件</p>
@@ -159,10 +159,24 @@ function QuadrantView({ events, onUpdate, onDelete }) {
                       ) : (
                         <>
                           <div className="flex justify-between items-start gap-2 mb-2">
-                            <h4 className="font-semibold text-gray-800 flex-1">
+                            <h4 className={`font-semibold flex-1 ${event.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
                               {event.title}
+                              {event.completed && (
+                                <span className="ml-2 text-xs text-green-600">✓</span>
+                              )}
                             </h4>
                             <div className="flex gap-1">
+                              <button
+                                onClick={() => onUpdate(event.id, { completed: !event.completed })}
+                                className={`p-1 rounded transition-colors ${
+                                  event.completed
+                                    ? 'text-gray-600 hover:bg-gray-100'
+                                    : 'text-green-600 hover:bg-green-50'
+                                }`}
+                                title={event.completed ? '标记为未完成' : '标记为完成'}
+                              >
+                                {event.completed ? '↩️' : '✓'}
+                              </button>
                               <button
                                 onClick={() => startEdit(event)}
                                 className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
@@ -180,7 +194,7 @@ function QuadrantView({ events, onUpdate, onDelete }) {
                             </div>
                           </div>
                           {event.suggestion && (
-                            <p className="text-sm text-gray-600 mt-2">
+                            <p className={`text-sm mt-2 ${event.completed ? 'text-gray-400' : 'text-gray-600'}`}>
                               💡 {event.suggestion}
                             </p>
                           )}
