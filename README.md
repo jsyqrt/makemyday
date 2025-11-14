@@ -444,9 +444,9 @@ MIT License - 详见 [LICENSE](./LICENSE) 文件
 
 ## 📧 联系方式
 
-- 💬 提问和讨论：[GitHub Issues](https://github.com/yourusername/makemyday/issues)
-- 🐛 Bug 报告：[GitHub Issues](https://github.com/yourusername/makemyday/issues)
-- 💡 功能建议：[GitHub Discussions](https://github.com/yourusername/makemyday/discussions)
+- 💬 提问和讨论：[GitHub Issues](https://github.com/jsyqrt/makemyday/issues)
+- 🐛 Bug 报告：[GitHub Issues](https://github.com/jsyqrt/makemyday/issues)
+- 💡 功能建议：[GitHub Discussions](https://github.com/jsyqrt/makemyday/discussions)
 
 ---
 
