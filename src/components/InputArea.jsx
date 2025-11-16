@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 
-function InputArea({ onSubmit, loading, config }) {
+function InputArea({ onSubmit, loading, config, aiStreamOutput = '' }) {
   const [text, setText] = useState('')
   const [isRecording, setIsRecording] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -162,14 +162,23 @@ function InputArea({ onSubmit, loading, config }) {
         <div className="relative">
           <textarea
             ref={textareaRef}
-            value={text}
+            value={loading && aiStreamOutput ? aiStreamOutput : text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyPress}
             placeholder="告诉我你今天想做什么...&#10;例如：我要写一份项目报告，下午开会，晚上健身，周末陪家人"
             className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all resize-none"
             rows="4"
             disabled={loading}
+            readOnly={loading && aiStreamOutput}
           />
+          {loading && aiStreamOutput && (
+            <div className="absolute top-2 right-2">
+              <div className="flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-600 rounded-full text-sm">
+                <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                <span>AI 生成中...</span>
+              </div>
+            </div>
+          )}
           {isRecording && (
             <div className="absolute top-2 right-2">
               <div className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-600 rounded-full text-sm">

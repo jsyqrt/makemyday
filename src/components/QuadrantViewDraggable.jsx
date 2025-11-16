@@ -13,16 +13,26 @@ import {
   useSortable,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import EventEditModal from './EventEditModal'
 
 const quadrants = [
   {
     id: 'urgent-important',
-    title: '紧急且重要',
+    title: '重要且紧急',
     subtitle: '立即去做',
     color: 'bg-red-500',
     bgColor: 'bg-red-50',
     borderColor: 'border-red-300',
     icon: '🔥'
+  },
+  {
+    id: 'not-urgent-important',
+    title: '重要但不紧急',
+    subtitle: '计划去做',
+    color: 'bg-blue-500',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-300',
+    icon: '⭐'
   },
   {
     id: 'urgent-not-important',
@@ -32,15 +42,6 @@ const quadrants = [
     bgColor: 'bg-orange-50',
     borderColor: 'border-orange-300',
     icon: '⚡'
-  },
-  {
-    id: 'not-urgent-important',
-    title: '不紧急但重要',
-    subtitle: '计划去做',
-    color: 'bg-blue-500',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-300',
-    icon: '⭐'
   },
   {
     id: 'not-urgent-not-important',
@@ -54,7 +55,7 @@ const quadrants = [
 ]
 
 // 可拖拽的事件卡片组件
-function DraggableEventCard({ event, quadrant, onUpdate, onDeleteClick, confirmDelete, deleteConfirm, cancelDelete, startEdit, showDragHandle = true }) {
+function DraggableEventCard({ event, onUpdate, onCardClick, showDragHandle = true }) {
   const {
     attributes,
     listeners,
@@ -70,83 +71,69 @@ function DraggableEventCard({ event, quadrant, onUpdate, onDeleteClick, confirmD
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const isConfirmingDelete = deleteConfirm === event.id
+  const handleCardClick = (e) => {
+    // 如果点击的是标题、拖拽手柄或完成按钮，不打开编辑弹窗
+    if (e.target.closest('.event-title') || e.target.closest('.drag-handle') || e.target.closest('.complete-button')) {
+      return
+    }
+    // 否则打开编辑弹窗
+    onCardClick(event)
+  }
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
-      className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all p-4 border border-gray-200 cursor-move"
+      className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all p-4 border border-gray-200 cursor-pointer"
+      onClick={handleCardClick}
     >
       <div className="flex justify-between items-start gap-2 mb-2">
-        <div className="flex-1 flex items-start gap-2" {...listeners}>
+        <div className="flex-1 flex items-start gap-2">
           {/* 拖拽手柄 */}
           {showDragHandle && (
-            <div className="mt-1 text-gray-400 cursor-grab active:cursor-grabbing">
+            <div className="drag-handle mt-1 text-gray-400 cursor-grab active:cursor-grabbing" {...listeners}>
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M7 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 2zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 7 14zm6-8a2 2 0 1 0-.001-4.001A2 2 0 0 0 13 6zm0 2a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 8zm0 6a2 2 0 1 0 .001 4.001A2 2 0 0 0 13 14z"/>
               </svg>
             </div>
           )}
-          <h4 className={`font-semibold flex-1 ${event.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+          <h4
+            className={`event-title font-semibold flex-1 cursor-grab active:cursor-grabbing ${event.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}
+            {...listeners}
+          >
             {event.title}
             {event.completed && (
               <span className="ml-2 text-xs text-green-600">✓</span>
             )}
           </h4>
         </div>
-        <div className="flex gap-1 flex-shrink-0">
-          {!isConfirmingDelete ? (
-            <>
-              <button
-                onClick={() => onUpdate(event.id, { completed: !event.completed })}
-                className={`p-1 rounded transition-colors ${
-                  event.completed
-                    ? 'text-gray-600 hover:bg-gray-100'
-                    : 'text-green-600 hover:bg-green-50'
-                }`}
-                title={event.completed ? '标记为未完成' : '标记为完成'}
-              >
-                {event.completed ? '↩️' : '✓'}
-              </button>
-              <button
-                onClick={() => startEdit(event)}
-                className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                title="编辑"
-              >
-                ✏️
-              </button>
-              <button
-                onClick={() => onDeleteClick(event.id)}
-                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                title="删除"
-              >
-                🗑️
-              </button>
-            </>
+        {/* 完成按钮 */}
+        <button
+          className="complete-button p-1 rounded transition-colors flex-shrink-0"
+          onClick={(e) => {
+            e.stopPropagation()
+            onUpdate(event.id, { completed: !event.completed })
+          }}
+          title={event.completed ? '标记为未完成' : '标记为完成'}
+        >
+          {event.completed ? (
+            <span className="text-gray-600 hover:bg-gray-100 p-1 rounded">↩️</span>
           ) : (
-            <>
-              <button
-                onClick={() => confirmDelete(event.id)}
-                className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-              >
-                确认删除
-              </button>
-              <button
-                onClick={cancelDelete}
-                className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-              >
-                取消
-              </button>
-            </>
+            <span className="text-green-600 hover:bg-green-50 p-1 rounded">✓</span>
           )}
-        </div>
+        </button>
       </div>
       {event.suggestion && (
-        <p className={`text-sm mt-2 ${event.completed ? 'text-gray-400' : 'text-gray-600'}`} {...listeners}>
+        <p className={`text-sm mt-2 ${event.completed ? 'text-gray-400' : 'text-gray-600'}`}>
           💡 {event.suggestion}
         </p>
+      )}
+      {event.detail && (
+        <div className={`text-sm mt-2 p-3 rounded-lg ${event.completed ? 'bg-gray-50 text-gray-400' : 'bg-blue-50 text-blue-800'}`}>
+          <div className="font-medium text-xs mb-1 opacity-75">详细信息：</div>
+          <div className="whitespace-pre-wrap">{event.detail}</div>
+        </div>
       )}
     </div>
   )
@@ -188,9 +175,7 @@ function DroppableQuadrant({ quadrant, children }) {
 
 function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
   const [activeId, setActiveId] = useState(null)
-  const [editingEvent, setEditingEvent] = useState(null)
-  const [editForm, setEditForm] = useState({ title: '', suggestion: '', priority: '' })
-  const [deleteConfirm, setDeleteConfirm] = useState(null) // 删除确认状态
+  const [editingEvent, setEditingEvent] = useState(null) // 当前正在编辑的事件
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -210,43 +195,26 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
     return events.filter(event => event.completed)
   }
 
-  // 友好的删除确认
-  const handleDeleteClick = (eventId) => {
-    setDeleteConfirm(eventId)
-    // 3秒后自动取消确认状态
-    setTimeout(() => {
-      setDeleteConfirm(null)
-    }, 3000)
+  // 打开编辑弹窗
+  const handleCardClick = (event) => {
+    setEditingEvent(event)
   }
 
-  const confirmDelete = (eventId) => {
-    onDelete(eventId)
-    setDeleteConfirm(null)
-  }
-
-  const cancelDelete = () => {
-    setDeleteConfirm(null)
-  }
-
-  const startEdit = (event) => {
-    setEditingEvent(event.id)
-    setEditForm({
-      title: event.title,
-      suggestion: event.suggestion,
-      priority: event.priority
-    })
-  }
-
-  const saveEdit = () => {
-    if (editingEvent) {
-      onUpdate(editingEvent, editForm)
-      setEditingEvent(null)
-    }
-  }
-
-  const cancelEdit = () => {
+  // 保存编辑
+  const handleSaveEdit = (eventId, updates) => {
+    onUpdate(eventId, updates)
     setEditingEvent(null)
-    setEditForm({ title: '', suggestion: '', priority: '' })
+  }
+
+  // 关闭编辑弹窗
+  const handleCloseEdit = () => {
+    setEditingEvent(null)
+  }
+
+  // 删除事件
+  const handleDeleteEvent = (eventId) => {
+    onDelete(eventId)
+    setEditingEvent(null)
   }
 
   const handleDragStart = (event) => {
@@ -353,63 +321,12 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
                     ) : (
                       <SortableContext items={eventIds} strategy={verticalListSortingStrategy}>
                         {quadrantEvents.map((event) => (
-                          editingEvent === event.id ? (
-                            <div key={event.id} className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-                              <div className="space-y-3">
-                                <input
-                                  type="text"
-                                  value={editForm.title}
-                                  onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                                  placeholder="事件标题"
-                                />
-                                <textarea
-                                  value={editForm.suggestion}
-                                  onChange={(e) => setEditForm({ ...editForm, suggestion: e.target.value })}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 resize-none text-sm"
-                                  rows="2"
-                                  placeholder="行动建议"
-                                />
-                                <select
-                                  value={editForm.priority}
-                                  onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
-                                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                                >
-                                  {quadrants.map(q => (
-                                    <option key={q.id} value={q.id}>
-                                      {q.icon} {q.title}
-                                    </option>
-                                  ))}
-                                </select>
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={saveEdit}
-                                    className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                                  >
-                                    ✅ 保存
-                                  </button>
-                                  <button
-                                    onClick={cancelEdit}
-                                    className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
-                                  >
-                                    取消
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <DraggableEventCard
-                              key={event.id}
-                              event={event}
-                              quadrant={quadrant}
-                              onUpdate={onUpdate}
-                              onDeleteClick={handleDeleteClick}
-                              confirmDelete={confirmDelete}
-                              deleteConfirm={deleteConfirm}
-                              cancelDelete={cancelDelete}
-                              startEdit={startEdit}
-                            />
-                          )
+                          <DraggableEventCard
+                            key={event.id}
+                            event={event}
+                            onUpdate={onUpdate}
+                            onCardClick={handleCardClick}
+                          />
                         ))}
                       </SortableContext>
                     )}
@@ -420,9 +337,9 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
           </div>
 
           {/* 右侧：已完成区域 */}
-          <div className="w-80 bg-green-50 rounded-2xl shadow-xl border-2 border-green-300 overflow-hidden">
+          <div className="w-80 bg-green-50 rounded-2xl shadow-xl border-2 border-green-300 overflow-hidden flex flex-col">
             {/* 头部 */}
-            <div className="bg-green-500 text-white p-4">
+            <div className="bg-green-500 text-white p-4 flex-shrink-0">
               <div className="flex items-center gap-3">
                 <span className="text-3xl">✅</span>
                 <div>
@@ -435,7 +352,7 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
             </div>
 
             {/* 已完成事件列表 */}
-            <div className="p-4 space-y-3 min-h-[200px] max-h-[800px] overflow-y-auto">
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto">
               {completedEvents.length === 0 ? (
                 <div className="text-center py-8 text-gray-400">
                   <p>暂无已完成事件</p>
@@ -443,63 +360,13 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
                 </div>
               ) : (
                 completedEvents.map((event) => (
-                  editingEvent === event.id ? (
-                    <div key={event.id} className="bg-white rounded-lg shadow-md p-4 border border-gray-200">
-                      <div className="space-y-3">
-                        <input
-                          type="text"
-                          value={editForm.title}
-                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                          placeholder="事件标题"
-                        />
-                        <textarea
-                          value={editForm.suggestion}
-                          onChange={(e) => setEditForm({ ...editForm, suggestion: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 resize-none text-sm"
-                          rows="2"
-                          placeholder="行动建议"
-                        />
-                        <select
-                          value={editForm.priority}
-                          onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 text-sm"
-                        >
-                          {quadrants.map(q => (
-                            <option key={q.id} value={q.id}>
-                              {q.icon} {q.title}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={saveEdit}
-                            className="flex-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
-                          >
-                            ✅ 保存
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
-                          >
-                            取消
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <DraggableEventCard
-                      key={event.id}
-                      event={event}
-                      onUpdate={onUpdate}
-                      onDeleteClick={handleDeleteClick}
-                      confirmDelete={confirmDelete}
-                      deleteConfirm={deleteConfirm}
-                      cancelDelete={cancelDelete}
-                      startEdit={startEdit}
-                      showDragHandle={false}
-                    />
-                  )
+                  <DraggableEventCard
+                    key={event.id}
+                    event={event}
+                    onUpdate={onUpdate}
+                    onCardClick={handleCardClick}
+                    showDragHandle={false}
+                  />
                 ))
               )}
             </div>
@@ -521,6 +388,16 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {/* 编辑弹窗 */}
+      {editingEvent && (
+        <EventEditModal
+          event={editingEvent}
+          onSave={handleSaveEdit}
+          onClose={handleCloseEdit}
+          onDelete={handleDeleteEvent}
+        />
+      )}
     </div>
   )
 }

@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
 import InputArea from './InputArea'
-import EventList from './EventList'
 import QuadrantViewDraggable from './QuadrantViewDraggable'
 import { loadEvents, saveEvents, checkStorageWarning, setStorageWarning } from '../utils/storage'
 import { callLLM } from '../utils/llm'
@@ -9,9 +8,9 @@ import { exportToJSON, exportToMarkdown, exportToImage, importFromJSON } from '.
 function MainLayout({ config, onOpenConfig }) {
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(false)
-  const [viewMode, setViewMode] = useState('quadrant') // 'list' or 'quadrant' - 默认四象限
   const [showWarning, setShowWarning] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [aiStreamOutput, setAiStreamOutput] = useState('') // AI 流式输出内容
   const fileInputRef = useRef(null)
   const isInitialized = useRef(false) // 标记是否已初始化
 
@@ -43,8 +42,14 @@ function MainLayout({ config, onOpenConfig }) {
     if (!text.trim()) return
 
     setLoading(true)
+    setAiStreamOutput('') // 清空之前的输出
     try {
-      const parsedEvents = await callLLM(config, text)
+      // 流式输出回调函数
+      const onStreamCallback = (token, fullContent) => {
+        setAiStreamOutput(fullContent)
+      }
+
+      const parsedEvents = await callLLM(config, text, onStreamCallback)
 
       if (Array.isArray(parsedEvents) && parsedEvents.length > 0) {
         const newEvents = parsedEvents.map((event, index) => ({
@@ -52,6 +57,7 @@ function MainLayout({ config, onOpenConfig }) {
           title: event.title || '未命名事件',
           priority: event.priority || 'not-urgent-not-important',
           suggestion: event.suggestion || '',
+          detail: event.detail || '', // 详细信息
           completed: false,
           createdAt: new Date().toISOString()
         }))
@@ -63,6 +69,8 @@ function MainLayout({ config, onOpenConfig }) {
       alert(`处理失败: ${error.message}`)
     } finally {
       setLoading(false)
+      // 延迟清空流式输出，让用户看到完整结果
+      setTimeout(() => setAiStreamOutput(''), 1000)
     }
   }
 
@@ -224,28 +232,6 @@ function MainLayout({ config, onOpenConfig }) {
               >
                 ⚙️ 设置
               </button>
-              <div className="flex border border-gray-300 rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-4 py-2 transition-colors ${
-                    viewMode === 'list'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  📋 列表
-                </button>
-                <button
-                  onClick={() => setViewMode('quadrant')}
-                  className={`px-4 py-2 transition-colors ${
-                    viewMode === 'quadrant'
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  📊 四象限
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -258,6 +244,7 @@ function MainLayout({ config, onOpenConfig }) {
           onSubmit={handleAddInput}
           loading={loading}
           config={config}
+          aiStreamOutput={aiStreamOutput}
         />
 
         {/* 事件展示区 */}
@@ -273,21 +260,12 @@ function MainLayout({ config, onOpenConfig }) {
           </div>
         ) : (
           <div className="mt-8">
-            {viewMode === 'list' ? (
-              <EventList
-                events={events}
-                onUpdate={handleUpdateEvent}
-                onDelete={handleDeleteEvent}
-                onReorder={handleReorderEvents}
-              />
-            ) : (
-              <QuadrantViewDraggable
-                events={events}
-                onUpdate={handleUpdateEvent}
-                onDelete={handleDeleteEvent}
-                onReorder={handleReorderEvents}
-              />
-            )}
+            <QuadrantViewDraggable
+              events={events}
+              onUpdate={handleUpdateEvent}
+              onDelete={handleDeleteEvent}
+              onReorder={handleReorderEvents}
+            />
           </div>
         )}
       </main>

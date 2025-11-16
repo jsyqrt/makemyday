@@ -3,12 +3,21 @@ import { useState } from 'react'
 const quadrants = [
   {
     id: 'urgent-important',
-    title: '紧急且重要',
+    title: '重要且紧急',
     subtitle: '立即去做',
     color: 'bg-red-500',
     bgColor: 'bg-red-50',
     borderColor: 'border-red-300',
     icon: '🔥'
+  },
+  {
+    id: 'not-urgent-important',
+    title: '重要但不紧急',
+    subtitle: '计划去做',
+    color: 'bg-blue-500',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-300',
+    icon: '⭐'
   },
   {
     id: 'urgent-not-important',
@@ -18,15 +27,6 @@ const quadrants = [
     bgColor: 'bg-orange-50',
     borderColor: 'border-orange-300',
     icon: '⚡'
-  },
-  {
-    id: 'not-urgent-important',
-    title: '不紧急但重要',
-    subtitle: '计划去做',
-    color: 'bg-blue-500',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-300',
-    icon: '⭐'
   },
   {
     id: 'not-urgent-not-important',
