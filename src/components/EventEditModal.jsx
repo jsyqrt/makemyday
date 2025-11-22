@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 
 const quadrants = [
   {
@@ -31,9 +31,6 @@ function EventEditModal({ event, onSave, onClose, onDelete, isCreating = false }
     priority: '',
     completed: false
   })
-  const [isRecording, setIsRecording] = useState(false)
-  const [recognition, setRecognition] = useState(null)
-  const detailTextareaRef = useRef(null)
 
   useEffect(() => {
     if (event) {
@@ -46,52 +43,6 @@ function EventEditModal({ event, onSave, onClose, onDelete, isCreating = false }
       })
     }
   }, [event])
-
-  // 初始化浏览器语音识别
-  useEffect(() => {
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-      const recognitionInstance = new SpeechRecognition()
-      recognitionInstance.continuous = true
-      recognitionInstance.interimResults = true
-      recognitionInstance.lang = 'zh-CN'
-
-      recognitionInstance.onresult = (event) => {
-        let interimTranscript = ''
-        let finalTranscript = ''
-
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcript = event.results[i][0].transcript
-          if (event.results[i].isFinal) {
-            finalTranscript += transcript
-          } else {
-            interimTranscript += transcript
-          }
-        }
-
-        if (finalTranscript) {
-          setFormData(prev => ({ ...prev, detail: prev.detail + finalTranscript }))
-        }
-      }
-
-      recognitionInstance.onerror = (event) => {
-        console.error('语音识别错误:', event.error)
-        setIsRecording(false)
-      }
-
-      recognitionInstance.onend = () => {
-        setIsRecording(false)
-      }
-
-      setRecognition(recognitionInstance)
-    }
-
-    return () => {
-      if (recognition) {
-        recognition.stop()
-      }
-    }
-  }, [])
 
   // ESC 键关闭弹窗
   useEffect(() => {
@@ -123,21 +74,6 @@ function EventEditModal({ event, onSave, onClose, onDelete, isCreating = false }
   const handleDelete = () => {
     if (confirm('确定要删除这个事件吗？')) {
       onDelete(event.id)
-    }
-  }
-
-  const toggleRecording = () => {
-    if (!recognition) {
-      alert('您的浏览器不支持语音识别，请使用 Chrome 或 Edge 浏览器')
-      return
-    }
-
-    if (isRecording) {
-      recognition.stop()
-      setIsRecording(false)
-    } else {
-      recognition.start()
-      setIsRecording(true)
     }
   }
 
@@ -196,42 +132,13 @@ function EventEditModal({ event, onSave, onClose, onDelete, isCreating = false }
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 详细信息
               </label>
-              <div className="relative">
-                <textarea
-                  ref={detailTextareaRef}
-                  value={formData.detail}
-                  onChange={(e) => setFormData({ ...formData, detail: e.target.value })}
-                  placeholder="补充更多细节，如完成情况、收集的信息等..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-                  rows="4"
-                />
-                {recognition && (
-                  <button
-                    type="button"
-                    onClick={toggleRecording}
-                    className={`absolute bottom-3 right-3 p-2 rounded-lg transition-all ${
-                      isRecording
-                        ? 'bg-red-500 text-white animate-pulse'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                    title={isRecording ? '停止录音' : '语音输入'}
-                  >
-                    {isRecording ? (
-                      <span className="flex items-center gap-1">
-                        <span className="w-2 h-2 bg-white rounded-full animate-ping"></span>
-                        🎤
-                      </span>
-                    ) : (
-                      '🎤'
-                    )}
-                  </button>
-                )}
-              </div>
-              {recognition && (
-                <p className="text-xs text-gray-500 mt-1">
-                  💡 点击麦克风图标进行语音输入
-                </p>
-              )}
+              <textarea
+                value={formData.detail}
+                onChange={(e) => setFormData({ ...formData, detail: e.target.value })}
+                placeholder="补充更多细节，如完成情况、收集的信息等..."
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                rows="4"
+              />
             </div>
 
             {/* 优先级 */}

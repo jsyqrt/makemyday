@@ -5,7 +5,6 @@ function ConfigModal({ config, onSave, onClose }) {
   const [apiKey, setApiKey] = useState(config?.apiKey || '')
   const [baseUrl, setBaseUrl] = useState(config?.baseUrl || 'https://api.siliconflow.cn/v1')
   const [model, setModel] = useState(config?.model || 'deepseek-ai/DeepSeek-V2.5')
-  const [speechApiKey, setSpeechApiKey] = useState(config?.speechApiKey || '')
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState(null)
 
@@ -25,8 +24,7 @@ function ConfigModal({ config, onSave, onClose }) {
     onSave({
       apiKey: apiKey.trim(),
       baseUrl: baseUrl.trim(),
-      model: model.trim(),
-      speechApiKey: speechApiKey.trim()
+      model: model.trim()
     })
   }
 
@@ -114,50 +112,6 @@ function ConfigModal({ config, onSave, onClose }) {
                   {testResult.message}
                 </div>
               )}
-            </div>
-
-            {/* 语音识别配置 */}
-            <div className="space-y-4 border-t pt-6">
-              <h3 className="text-xl font-semibold text-gray-700">🎤 语音识别配置（可选）</h3>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Speech API Key
-                </label>
-                <input
-                  type="password"
-                  value={speechApiKey}
-                  onChange={(e) => setSpeechApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                />
-                <div className="mt-2 space-y-1">
-                  <p className="text-sm text-gray-600">
-                    <strong>选项 1（推荐）</strong>：配置 SiliconFlow 语音识别 API Key
-                  </p>
-                  <p className="text-sm text-gray-500 ml-4">
-                    • 使用与 LLM 相同的 API Key 即可
-                  </p>
-                  <p className="text-sm text-gray-500 ml-4">
-                    • 支持所有现代浏览器
-                  </p>
-                  <p className="text-sm text-gray-500 ml-4">
-                    • 识别准确度高
-                  </p>
-                  <p className="text-sm text-gray-600 mt-2">
-                    <strong>选项 2</strong>：留空使用浏览器内置语音识别
-                  </p>
-                  <p className="text-sm text-gray-500 ml-4">
-                    • 完全免费，无需 API
-                  </p>
-                  <p className="text-sm text-gray-500 ml-4">
-                    • 仅支持 Chrome/Edge 浏览器
-                  </p>
-                  <p className="text-sm text-gray-500 ml-4">
-                    • 需要网络连接
-                  </p>
-                </div>
-              </div>
             </div>
 
             {/* 保存按钮 */}
