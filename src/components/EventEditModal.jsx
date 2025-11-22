@@ -23,7 +23,7 @@ const quadrants = [
   }
 ]
 
-function EventEditModal({ event, onSave, onClose, onDelete }) {
+function EventEditModal({ event, onSave, onClose, onDelete, isCreating = false }) {
   const [formData, setFormData] = useState({
     title: '',
     suggestion: '',
@@ -111,7 +111,13 @@ function EventEditModal({ event, onSave, onClose, onDelete }) {
       alert('请输入事件标题')
       return
     }
-    onSave(event.id, formData)
+    if (isCreating) {
+      // 创建新事件时，不需要传 event.id
+      onSave(null, formData)
+    } else {
+      // 更新已有事件
+      onSave(event.id, formData)
+    }
   }
 
   const handleDelete = () => {
@@ -143,7 +149,9 @@ function EventEditModal({ event, onSave, onClose, onDelete }) {
         <div className="p-6">
           {/* 头部 */}
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">✏️ 编辑事件</h2>
+            <h2 className="text-2xl font-bold text-gray-800">
+              {isCreating ? '➕ 创建事件' : '✏️ 编辑事件'}
+            </h2>
             <button
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
@@ -283,12 +291,14 @@ function EventEditModal({ event, onSave, onClose, onDelete }) {
 
           {/* 底部按钮 */}
           <div className="flex gap-3 mt-8 pt-6 border-t border-gray-200">
-            <button
-              onClick={handleDelete}
-              className="px-6 py-3 border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
-            >
-              🗑️ 删除
-            </button>
+            {!isCreating && (
+              <button
+                onClick={handleDelete}
+                className="px-6 py-3 border-2 border-red-500 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium"
+              >
+                🗑️ 删除
+              </button>
+            )}
             <div className="flex-1"></div>
             <button
               onClick={onClose}
@@ -300,7 +310,7 @@ function EventEditModal({ event, onSave, onClose, onDelete }) {
               onClick={handleSave}
               className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium shadow-lg"
             >
-              💾 保存
+              {isCreating ? '✨ 创建' : '💾 保存'}
             </button>
           </div>
         </div>

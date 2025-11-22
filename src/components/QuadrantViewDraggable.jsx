@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -140,7 +140,7 @@ function DraggableEventCard({ event, onUpdate, onCardClick, showDragHandle = tru
 }
 
 // 可放置的象限容器
-function DroppableQuadrant({ quadrant, children }) {
+function DroppableQuadrant({ quadrant, children, onAddClick }) {
   const { setNodeRef } = useSortable({
     id: quadrant.id,
     data: {
@@ -156,26 +156,39 @@ function DroppableQuadrant({ quadrant, children }) {
     >
       {/* 象限头部 */}
       <div className={`${quadrant.color} text-white p-4`}>
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">{quadrant.icon}</span>
-          <div>
-            <h3 className="text-xl font-bold">{quadrant.title}</h3>
-            <p className="text-sm opacity-90">{quadrant.subtitle}</p>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">{quadrant.icon}</span>
+            <div>
+              <h3 className="text-xl font-bold">{quadrant.title}</h3>
+              <p className="text-sm opacity-90">{quadrant.subtitle}</p>
+            </div>
           </div>
+          {/* 添加按钮 */}
+          <button
+            onClick={() => onAddClick(quadrant.id)}
+            className="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition-all flex items-center justify-center text-white text-xl font-bold"
+            title={`创建${quadrant.title}事件`}
+          >
+            +
+          </button>
         </div>
       </div>
 
       {/* 事件列表 */}
-      <div className="p-4 space-y-3 min-h-[200px]">
+      <div className="p-4 space-y-3">
         {children}
       </div>
     </div>
   )
 }
 
-function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
+function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder, onAdd }) {
   const [activeId, setActiveId] = useState(null)
   const [editingEvent, setEditingEvent] = useState(null) // 当前正在编辑的事件
+  const [isCreating, setIsCreating] = useState(false) // 是否在创建新事件
+  const [completedBoxHeight, setCompletedBoxHeight] = useState('auto') // 已完成框的高度
+  const quadrantsRef = useRef(null) // 左侧四象限容器的引用
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -184,6 +197,33 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
       },
     })
   )
+
+  // 计算并设置已完成框的高度
+  useEffect(() => {
+    const updateHeight = () => {
+      if (quadrantsRef.current) {
+        const height = quadrantsRef.current.offsetHeight
+        setCompletedBoxHeight(`${height}px`)
+      }
+    }
+
+    // 初始计算
+    updateHeight()
+
+    // 监听窗口大小变化
+    window.addEventListener('resize', updateHeight)
+
+    // 使用 ResizeObserver 监听内容变化
+    const resizeObserver = new ResizeObserver(updateHeight)
+    if (quadrantsRef.current) {
+      resizeObserver.observe(quadrantsRef.current)
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateHeight)
+      resizeObserver.disconnect()
+    }
+  }, [events]) // 当 events 变化时重新计算
 
   // 获取未完成的事件（四象限中显示）
   const getEventsByPriority = (priority) => {
@@ -198,23 +238,50 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
   // 打开编辑弹窗
   const handleCardClick = (event) => {
     setEditingEvent(event)
+    setIsCreating(false)
+  }
+
+  // 点击象限标题栏的+按钮，创建新事件
+  const handleAddClick = (priority) => {
+    setEditingEvent({
+      title: '',
+      suggestion: '',
+      detail: '',
+      priority: priority,
+      completed: false
+    })
+    setIsCreating(true)
   }
 
   // 保存编辑
   const handleSaveEdit = (eventId, updates) => {
-    onUpdate(eventId, updates)
+    if (isCreating) {
+      // 创建新事件
+      const newEvent = {
+        id: Date.now(),
+        ...updates,
+        createdAt: new Date().toISOString()
+      }
+      onAdd(newEvent)
+    } else {
+      // 更新已有事件
+      onUpdate(eventId, updates)
+    }
     setEditingEvent(null)
+    setIsCreating(false)
   }
 
   // 关闭编辑弹窗
   const handleCloseEdit = () => {
     setEditingEvent(null)
+    setIsCreating(false)
   }
 
   // 删除事件
   const handleDeleteEvent = (eventId) => {
     onDelete(eventId)
     setEditingEvent(null)
+    setIsCreating(false)
   }
 
   const handleDragStart = (event) => {
@@ -298,9 +365,9 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className="flex gap-6">
+        <div className="flex gap-6 items-start">
           {/* 左侧：四象限 */}
-          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div ref={quadrantsRef} className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
             {quadrants.map((quadrant) => {
               const quadrantEvents = getEventsByPriority(quadrant.id)
               const eventIds = quadrantEvents.map(e => e.id)
@@ -312,7 +379,7 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
                   items={[quadrant.id, ...eventIds]}
                   strategy={verticalListSortingStrategy}
                 >
-                  <DroppableQuadrant quadrant={quadrant}>
+                  <DroppableQuadrant quadrant={quadrant} onAddClick={handleAddClick}>
                     {quadrantEvents.length === 0 ? (
                       <div className="text-center py-8 text-gray-400">
                         <p>暂无事件</p>
@@ -337,7 +404,10 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
           </div>
 
           {/* 右侧：已完成区域 */}
-          <div className="w-80 bg-green-50 rounded-2xl shadow-xl border-2 border-green-300 overflow-hidden flex flex-col">
+          <div
+            className="w-80 bg-green-50 rounded-2xl shadow-xl border-2 border-green-300 overflow-hidden flex flex-col"
+            style={{ height: completedBoxHeight }}
+          >
             {/* 头部 */}
             <div className="bg-green-500 text-white p-4 flex-shrink-0">
               <div className="flex items-center gap-3">
@@ -352,7 +422,7 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
             </div>
 
             {/* 已完成事件列表 */}
-            <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto min-h-0">
               {completedEvents.length === 0 ? (
                 <div className="text-center py-8 text-gray-400">
                   <p>暂无已完成事件</p>
@@ -396,6 +466,7 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder }) {
           onSave={handleSaveEdit}
           onClose={handleCloseEdit}
           onDelete={handleDeleteEvent}
+          isCreating={isCreating}
         />
       )}
     </div>

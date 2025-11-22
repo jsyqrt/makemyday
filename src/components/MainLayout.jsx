@@ -74,6 +74,10 @@ function MainLayout({ config, onOpenConfig }) {
     }
   }
 
+  const handleAddEvent = (newEvent) => {
+    setEvents([...events, newEvent])
+  }
+
   const handleUpdateEvent = (id, updates) => {
     setEvents(events.map(event =>
       event.id === id ? { ...event, ...updates } : event
@@ -262,6 +266,7 @@ function MainLayout({ config, onOpenConfig }) {
           <div className="mt-8">
             <QuadrantViewDraggable
               events={events}
+              onAdd={handleAddEvent}
               onUpdate={handleUpdateEvent}
               onDelete={handleDeleteEvent}
               onReorder={handleReorderEvents}
