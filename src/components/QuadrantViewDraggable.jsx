@@ -160,10 +160,19 @@ function DraggableEventCard({ event, onUpdate, onCardClick, showDragHandle = tru
       ref={setNodeRef}
       style={style}
       {...attributes}
-      className="bg-white rounded-lg shadow-md hover:shadow-lg transition-all p-4 border border-gray-200 cursor-pointer"
+      className={`bg-white rounded-lg shadow-md hover:shadow-lg transition-all p-2.5 border cursor-pointer ${
+        event.isFromGoal ? 'border-purple-300 border-l-4 border-l-purple-500' : 'border-gray-200'
+      }`}
       onClick={handleCardClick}
     >
-      <div className="flex justify-between items-center gap-2 mb-2">
+      {/* 来自目标的标识 */}
+      {event.isFromGoal && event.goalTitle && (
+        <div className="flex items-center gap-1 mb-1.5 text-xs text-purple-500">
+          <span>🎯</span>
+          <span className="truncate">{event.goalTitle}</span>
+        </div>
+      )}
+      <div className="flex justify-between items-center gap-2 mb-1.5">
         <div className="flex-1 flex items-center gap-2">
           {/* 拖拽手柄 */}
           {showDragHandle && (
@@ -402,19 +411,19 @@ function DroppableQuadrant({ quadrant, children, onAddClick, isImageBackground, 
       style={bgStyle}
     >
       {/* 象限头部 */}
-      <div className={`${quadrant.color} text-white p-4`}>
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <span className="text-3xl">{quadrant.icon}</span>
+      <div className={`${quadrant.color} text-white p-3`}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{quadrant.icon}</span>
             <div>
-              <h3 className="text-xl font-bold">{quadrant.title}</h3>
-              <p className="text-sm opacity-90">{quadrant.subtitle}</p>
+              <h3 className="text-base font-bold">{quadrant.title}</h3>
+              <p className="text-xs opacity-90">{quadrant.subtitle}</p>
             </div>
           </div>
           {/* 添加按钮 */}
           <button
             onClick={() => onAddClick(quadrant.id)}
-            className="flex-shrink-0 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition-all flex items-center justify-center text-white text-xl font-bold"
+            className="flex-shrink-0 w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 transition-all flex items-center justify-center text-white text-lg font-bold"
             title={`创建${quadrant.title}事件`}
           >
             +
@@ -423,14 +432,14 @@ function DroppableQuadrant({ quadrant, children, onAddClick, isImageBackground, 
       </div>
 
       {/* 事件列表 */}
-      <div className="p-4 space-y-3">
+      <div className="p-3 space-y-2">
         {children}
       </div>
     </div>
   )
 }
 
-function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder, onAdd, showCompleted = true, isImageBackground = false, containerOpacity = 50 }) {
+function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder, onAdd, showCompleted = true, showGoals = true, isImageBackground = false, containerOpacity = 50, goals = [], goalsPanel = null }) {
   const [activeId, setActiveId] = useState(null)
   const [editingEvent, setEditingEvent] = useState(null) // 当前正在编辑的事件
   const [isCreating, setIsCreating] = useState(false) // 是否在创建新事件
@@ -626,9 +635,16 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder, onAdd, s
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
       >
-        <div className={`flex gap-6 items-start ${showCompleted ? '' : 'justify-center'}`}>
-          {/* 左侧：四象限 */}
-          <div ref={quadrantsRef} className={`grid grid-cols-1 md:grid-cols-2 gap-6 ${showCompleted ? 'flex-1' : 'max-w-7xl w-full'}`}>
+        <div className={`flex gap-3 items-start ${(showCompleted || showGoals) ? '' : 'justify-center'}`}>
+          {/* 左侧：长期目标面板 */}
+          {showGoals && goalsPanel && (
+            <div style={{ height: completedBoxHeight === 'auto' ? undefined : completedBoxHeight }}>
+              {goalsPanel}
+            </div>
+          )}
+
+          {/* 中间：四象限 */}
+          <div ref={quadrantsRef} className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${(showCompleted || showGoals) ? 'flex-1 min-w-0' : 'max-w-7xl w-full'}`}>
             {quadrants.map((quadrant) => {
               const quadrantEvents = getEventsByPriority(quadrant.id)
               const eventIds = quadrantEvents.map(e => e.id)
@@ -667,19 +683,19 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder, onAdd, s
           {/* 右侧：已完成区域 - 根据 showCompleted 决定是否显示 */}
           {showCompleted && (
             <div
-              className={`w-80 ${isImageBackground && containerOpacity > 10 ? 'backdrop-blur-sm' : isImageBackground ? '' : 'bg-green-50'} rounded-2xl shadow-xl border-2 border-green-300 overflow-hidden flex flex-col`}
+              className={`w-72 lg:w-80 xl:w-96 2xl:w-[400px] ${isImageBackground && containerOpacity > 10 ? 'backdrop-blur-sm' : isImageBackground ? '' : 'bg-green-50'} rounded-xl shadow-xl border-2 border-green-300 overflow-hidden flex flex-col`}
               style={{
                 height: completedBoxHeight,
                 ...(isImageBackground ? { backgroundColor: `rgba(255, 255, 255, ${containerOpacity / 100})` } : {})
               }}
             >
             {/* 头部 */}
-            <div className="bg-green-500 text-white p-4 flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">✅</span>
+            <div className="bg-green-500 text-white p-3 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">✅</span>
                 <div>
-                  <h3 className="text-xl font-bold">已完成</h3>
-                  <p className="text-sm opacity-90">
+                  <h3 className="text-base font-bold">已完成</h3>
+                  <p className="text-xs opacity-90">
                     {completedEvents.length} 个事件
                   </p>
                 </div>
@@ -687,11 +703,11 @@ function QuadrantViewDraggable({ events, onUpdate, onDelete, onReorder, onAdd, s
             </div>
 
             {/* 已完成事件列表 */}
-            <div className="p-4 space-y-3 flex-1 overflow-y-auto min-h-0">
+            <div className="p-2.5 space-y-2 flex-1 overflow-y-auto min-h-0">
               {completedEvents.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  <p>暂无已完成事件</p>
-                  <p className="text-xs mt-2">完成事件后会显示在这里</p>
+                <div className="text-center py-6 text-gray-400">
+                  <p className="text-sm">暂无已完成事件</p>
+                  <p className="text-xs mt-1">完成事件后会显示在这里</p>
                 </div>
               ) : (
                 completedEvents.map((event) => (
