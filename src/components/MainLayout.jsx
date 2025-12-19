@@ -1,17 +1,20 @@
 import { useState, useEffect, useRef } from 'react'
 import InputArea from './InputArea'
 import QuadrantViewDraggable from './QuadrantViewDraggable'
-import { loadEvents, saveEvents, checkStorageWarning, setStorageWarning, loadUISettings, saveUISettings, loadBackgroundSettings } from '../utils/storage'
+import GoalPanel from './GoalPanel'
+import { loadEvents, saveEvents, checkStorageWarning, setStorageWarning, loadUISettings, saveUISettings, loadBackgroundSettings, loadGoals, saveGoals } from '../utils/storage'
 import { callLLM } from '../utils/llm'
 import { exportToJSON, importFromJSON } from '../utils/export'
 
 function MainLayout({ config, onOpenConfig }) {
   const [events, setEvents] = useState([])
+  const [goals, setGoals] = useState([]) // 长期目标
   const [loading, setLoading] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
   const [showPlanModal, setShowPlanModal] = useState(false) // 显示规划弹窗
   const [showSettingsMenu, setShowSettingsMenu] = useState(false) // 显示设置菜单
   const [showCompleted, setShowCompleted] = useState(true) // 是否显示已完成栏目
+  const [showGoals, setShowGoals] = useState(true) // 是否显示长期目标栏目
   const [aiStreamOutput, setAiStreamOutput] = useState('') // AI 流式输出内容
   const [bgSettings, setBgSettings] = useState(loadBackgroundSettings()) // 背景设置
   const fileInputRef = useRef(null)
@@ -22,9 +25,14 @@ function MainLayout({ config, onOpenConfig }) {
     const savedEvents = loadEvents()
     setEvents(savedEvents)
 
+    // 加载长期目标
+    const savedGoals = loadGoals()
+    setGoals(savedGoals)
+
     // 加载 UI 设置
     const uiSettings = loadUISettings()
     setShowCompleted(uiSettings.showCompleted)
+    setShowGoals(uiSettings.showGoals !== false) // 默认显示
 
     // 延迟标记初始化完成，确保 setEvents 已经执行
     setTimeout(() => {
@@ -48,9 +56,16 @@ function MainLayout({ config, onOpenConfig }) {
   // 保存 UI 设置
   useEffect(() => {
     if (isInitialized.current) {
-      saveUISettings({ showCompleted })
+      saveUISettings({ showCompleted, showGoals })
     }
-  }, [showCompleted])
+  }, [showCompleted, showGoals])
+
+  // 保存长期目标
+  useEffect(() => {
+    if (isInitialized.current) {
+      saveGoals(goals)
+    }
+  }, [goals])
 
   // 自动保存（依赖 events）- 跳过初始化时的保存
   useEffect(() => {
@@ -135,6 +150,167 @@ function MainLayout({ config, onOpenConfig }) {
 
   const toggleShowCompleted = () => {
     setShowCompleted(!showCompleted)
+  }
+
+  const toggleShowGoals = () => {
+    setShowGoals(!showGoals)
+  }
+
+  // 目标相关处理函数
+  const handleAddGoal = (newGoal) => {
+    setGoals([newGoal, ...goals])
+  }
+
+  const handleUpdateGoal = (goalId, updates) => {
+    setGoals(goals.map(goal =>
+      goal.id === goalId ? { ...goal, ...updates } : goal
+    ))
+  }
+
+  const handleDeleteGoal = (goalId) => {
+    setGoals(goals.filter(goal => goal.id !== goalId))
+  }
+
+  const handleReorderGoals = (newGoals) => {
+    setGoals(newGoals)
+  }
+
+  const handleAddSubtask = (goalId, subtask) => {
+    setGoals(goals.map(goal => {
+      if (goal.id === goalId) {
+        return {
+          ...goal,
+          subtasks: [...(goal.subtasks || []), subtask]
+        }
+      }
+      return goal
+    }))
+  }
+
+  const handleUpdateSubtask = (goalId, subtaskId, updates) => {
+    setGoals(goals.map(goal => {
+      if (goal.id === goalId) {
+        return {
+          ...goal,
+          subtasks: (goal.subtasks || []).map(subtask =>
+            subtask.id === subtaskId ? { ...subtask, ...updates } : subtask
+          )
+        }
+      }
+      return goal
+    }))
+  }
+
+  const handleDeleteSubtask = (goalId, subtaskId) => {
+    setGoals(goals.map(goal => {
+      if (goal.id === goalId) {
+        return {
+          ...goal,
+          subtasks: (goal.subtasks || []).filter(subtask => subtask.id !== subtaskId)
+        }
+      }
+      return goal
+    }))
+  }
+
+  const handleToggleSubtaskProjection = (goalId, subtaskId) => {
+    const goal = goals.find(g => g.id === goalId)
+    const subtask = goal?.subtasks?.find(s => s.id === subtaskId)
+
+    if (!subtask) return
+
+    if (subtask.projected) {
+      // 取消投影：从 events 中移除对应的事件
+      setEvents(events.filter(e => !(e.goalId === goalId && e.subtaskId === subtaskId)))
+    } else {
+      // 投影：在 events 中创建对应的事件
+      const newEvent = {
+        id: Date.now(),
+        title: subtask.title,
+        priority: subtask.priority || 'not-urgent-not-important',
+        suggestion: subtask.suggestion || '',
+        detail: subtask.estimatedTime ? `预估时间：${subtask.estimatedTime}` : '',
+        completed: subtask.completed || false,
+        eventType: 'one-time',
+        isExpanded: true,
+        createdAt: new Date().toISOString(),
+        // 关联目标信息
+        goalId: goalId,
+        subtaskId: subtaskId,
+        goalTitle: goal.title,
+        isFromGoal: true
+      }
+      setEvents([newEvent, ...events])
+    }
+
+    // 更新子任务的投影状态
+    setGoals(goals.map(g => {
+      if (g.id === goalId) {
+        return {
+          ...g,
+          subtasks: (g.subtasks || []).map(s =>
+            s.id === subtaskId ? { ...s, projected: !s.projected } : s
+          )
+        }
+      }
+      return g
+    }))
+  }
+
+  // 处理事件更新时同步目标子任务
+  const handleUpdateEventWithSync = (id, updates) => {
+    const event = events.find(e => e.id === id)
+
+    // 更新事件
+    setEvents(events.map(e =>
+      e.id === id ? { ...e, ...updates } : e
+    ))
+
+    // 如果是来自目标的事件，同步更新子任务
+    if (event?.isFromGoal && event.goalId && event.subtaskId) {
+      const subtaskUpdates = {}
+      if (updates.title !== undefined) subtaskUpdates.title = updates.title
+      if (updates.priority !== undefined) subtaskUpdates.priority = updates.priority
+      if (updates.suggestion !== undefined) subtaskUpdates.suggestion = updates.suggestion
+      if (updates.completed !== undefined) subtaskUpdates.completed = updates.completed
+
+      if (Object.keys(subtaskUpdates).length > 0) {
+        setGoals(goals.map(goal => {
+          if (goal.id === event.goalId) {
+            return {
+              ...goal,
+              subtasks: (goal.subtasks || []).map(subtask =>
+                subtask.id === event.subtaskId ? { ...subtask, ...subtaskUpdates } : subtask
+              )
+            }
+          }
+          return goal
+        }))
+      }
+    }
+  }
+
+  // 处理事件删除时同步取消投影
+  const handleDeleteEventWithSync = (id) => {
+    const event = events.find(e => e.id === id)
+
+    // 删除事件
+    setEvents(events.filter(e => e.id !== id))
+
+    // 如果是来自目标的事件，取消子任务的投影状态
+    if (event?.isFromGoal && event.goalId && event.subtaskId) {
+      setGoals(goals.map(goal => {
+        if (goal.id === event.goalId) {
+          return {
+            ...goal,
+            subtasks: (goal.subtasks || []).map(subtask =>
+              subtask.id === event.subtaskId ? { ...subtask, projected: false } : subtask
+            )
+          }
+        }
+        return goal
+      }))
+    }
   }
 
   const handleImportFile = async (e) => {
@@ -262,6 +438,26 @@ function MainLayout({ config, onOpenConfig }) {
                         <span className="text-sm font-medium text-gray-700">配置</span>
                       </button>
 
+                      {/* 显示长期目标 */}
+                      <button
+                        onClick={toggleShowGoals}
+                        className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center justify-between gap-3 border-b border-gray-100"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl">{showGoals ? '🎯' : '🙈'}</span>
+                          <span className="text-sm font-medium text-gray-700">长期目标</span>
+                        </div>
+                        <span className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                          showGoals
+                            ? 'bg-purple-500 border-purple-500'
+                            : 'border-gray-300'
+                        }`}>
+                          {showGoals && (
+                            <span className="text-white text-xs">✓</span>
+                          )}
+                        </span>
+                      </button>
+
                       {/* 显示已完成 */}
                       <button
                         onClick={toggleShowCompleted}
@@ -300,9 +496,12 @@ function MainLayout({ config, onOpenConfig }) {
       </header>
 
       {/* 主内容 */}
-      <main className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+      <main className={`mx-auto px-4 py-8 sm:px-6 lg:px-8 ${
+        showGoals && showCompleted ? 'max-w-[1800px]' :
+        (showGoals || showCompleted) ? 'max-w-[1400px]' : 'max-w-7xl'
+      }`}>
         {/* 事件展示区 */}
-        {events.length === 0 ? (
+        {events.length === 0 && goals.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl shadow-lg">
             <div className="text-6xl mb-4">📝</div>
             <h3 className="text-2xl font-semibold text-gray-700 mb-2">
@@ -322,12 +521,30 @@ function MainLayout({ config, onOpenConfig }) {
           <QuadrantViewDraggable
             events={events}
             onAdd={handleAddEvent}
-            onUpdate={handleUpdateEvent}
-            onDelete={handleDeleteEvent}
+            onUpdate={handleUpdateEventWithSync}
+            onDelete={handleDeleteEventWithSync}
             onReorder={handleReorderEvents}
             showCompleted={showCompleted}
+            showGoals={showGoals}
             isImageBackground={bgSettings.backgroundType === 'image' || bgSettings.backgroundType === 'folder'}
             containerOpacity={bgSettings.containerOpacity !== undefined ? bgSettings.containerOpacity : 50}
+            goals={goals}
+            goalsPanel={
+              <GoalPanel
+                goals={goals}
+                onAddGoal={handleAddGoal}
+                onUpdateGoal={handleUpdateGoal}
+                onDeleteGoal={handleDeleteGoal}
+                onAddSubtask={handleAddSubtask}
+                onUpdateSubtask={handleUpdateSubtask}
+                onDeleteSubtask={handleDeleteSubtask}
+                onToggleSubtaskProjection={handleToggleSubtaskProjection}
+                onReorderGoals={handleReorderGoals}
+                isImageBackground={bgSettings.backgroundType === 'image' || bgSettings.backgroundType === 'folder'}
+                containerOpacity={bgSettings.containerOpacity !== undefined ? bgSettings.containerOpacity : 50}
+                config={config}
+              />
+            }
           />
         )}
       </main>

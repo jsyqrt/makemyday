@@ -114,3 +114,22 @@ export const saveBackgroundSettings = (settings) => {
   }
 }
 
+// 长期目标存储
+export const loadGoals = () => {
+  try {
+    const goals = localStorage.getItem('makemyday_goals')
+    return goals ? JSON.parse(goals) : []
+  } catch (error) {
+    console.error('加载长期目标失败:', error)
+    return []
+  }
+}
+
+export const saveGoals = (goals) => {
+  try {
+    localStorage.setItem('makemyday_goals', JSON.stringify(goals))
+  } catch (error) {
+    console.error('保存长期目标失败:', error)
+  }
+}
+
